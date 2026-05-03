@@ -8,11 +8,6 @@ class AIProductRecommender:
     def load_data(self):
         self.search_engine.load()
 
-    def load_model(self):
-        pass
-
-    def build_or_load_embeddings(self):
-        pass
-
     def recommend(self, query, top_n=5):
-        return self.search_engine.search(query, top_n)
+        results, keywords, note = self.search_engine.search(query, top_n)
+        return results, keywords, note

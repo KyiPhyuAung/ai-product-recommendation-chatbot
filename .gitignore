@@ -1,11 +1,10 @@
 .venv/
-venv/
 __pycache__/
 *.pyc
 .DS_Store
 
-data/
 models/
 ai_models/
-*.csv
+data/
 *.npy
+*.pkl
