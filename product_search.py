@@ -262,7 +262,7 @@ class ProductSearch:
 
         return suggestions
 
-    def apply_product_rules(self, results: pd.DataFrame, product_type: str) -> pd.DataFrame:
+    def apply_product_rules(self, results: pd.DataFrame, product_type: str, keywords: List[str]) -> pd.DataFrame:
         if product_type not in PRODUCT_CATEGORIES:
             return results
 
@@ -274,6 +274,13 @@ class ProductSearch:
             & ~safe_regex_contains(title, rule["bad"])
             & (results["price"] >= float(rule.get("min_price", 0)))
         ].copy()
+
+        if product_type == "phone_case":
+            for kw in keywords:
+                if kw in ["iphone", "samsung", "google", "pixel"]:
+                    matched = safe_regex_contains(title, kw)
+                    if matched.any():
+                        filtered = filtered[matched]
 
         return filtered
 
@@ -341,19 +348,19 @@ class ProductSearch:
     def rerank(self, results: pd.DataFrame) -> pd.DataFrame:
         results = results.copy()
 
-        popularity_score = np.log1p(results["reviews"]) / 15
-        bought_score = np.log1p(results["boughtInLastMonth"]) / 15
-        rating_score = results["stars"] / 5
+        popularity_score = np.log1p(results["reviews"]) / 12
+        bought_score = np.log1p(results["boughtInLastMonth"]) / 12
+        rating_score = results["stars"] / 3
 
         results["final_score"] = (
-            results["product_type_match"] * 0.36
-            + results["tfidf_score"] * 0.24
-            + results["title_ratio"] * 0.15
-            + results["keyword_ratio"] * 0.08
-            + results["brand_match"] * 0.07
-            + rating_score * 0.04
-            + popularity_score * 0.03
-            + bought_score * 0.02
+            results["product_type_match"] * 0.30
+            + results["tfidf_score"] * 0.20
+            + rating_score * 0.15
+            + popularity_score * 0.12
+            + bought_score * 0.10
+            + results["title_ratio"] * 0.05
+            + results["keyword_ratio"] * 0.03
+            + results["brand_match"] * 0.04
             + results["isBestSeller"].astype(int) * 0.01
             - results["accessory_penalty"] * 0.45
         )
@@ -394,7 +401,7 @@ class ProductSearch:
                 note += " Did you mean: " + ", ".join(suggestions)
             return pd.DataFrame(), keywords, note
 
-        strict_results = self.apply_product_rules(results, product_type)
+        strict_results = self.apply_product_rules(results, product_type, keywords)
 
         if strict_results.empty and product_type in PRODUCT_CATEGORIES:
             note = "No exact matching product was found. The system avoided unrelated results."

@@ -1,5 +1,6 @@
 import streamlit as st
-from ai_recommender import AIProductRecommender
+import pandas as pd
+from product_search import ProductSearch
 
 st.set_page_config(
     page_title="AI Product Recommendation Chatbot",
@@ -9,17 +10,21 @@ st.set_page_config(
 st.title("🛒 AI Product Recommendation Chatbot")
 st.write("Search naturally for products. The system uses AI + strict filtering to return accurate results.")
 
-# Load model
 @st.cache_resource
-def load_ai():
-    recommender = AIProductRecommender()
-    recommender.load_data()
-    return recommender
+def load_engine():
+    search_engine = ProductSearch()
+    search_engine.load()
+    return search_engine
 
 with st.spinner("Loading AI system..."):
-    recommender = load_ai()
+    search_engine = load_engine()
 
-# Input
+# Sidebar Interactive Filters
+st.sidebar.header("Product Filters")
+min_price = st.sidebar.slider("Minimum Price ($)", 0, 5000, 0)
+max_price = st.sidebar.slider("Maximum Price ($)", 0, 5000, 5000)
+min_stars = st.sidebar.slider("Minimum Rating (Stars)", 0.0, 5.0, 0.0)
+
 query = st.text_input(
     "What are you looking for?",
     placeholder="Example: gaming laptop, iphone, wireless headphones, mini speaker"
@@ -27,46 +32,56 @@ query = st.text_input(
 
 top_n = st.selectbox("Number of results", [5, 10, 15, 20], index=0)
 
-# Search
 if query:
-    results, keywords, note = recommender.recommend(query, top_n)
+    results, keywords, note = search_engine.search(query, top_n)
+
+    # Filter based on user configuration
+    if not results.empty:
+        results = results[
+            (results["price"] >= min_price) & 
+            (results["price"] <= max_price) & 
+            (results["stars"] >= min_stars)
+        ]
 
     st.markdown(f"## Results for: **{query}**")
 
-    # Keywords
     if keywords:
         st.write(f"🔎 Detected keywords: {', '.join(keywords)}")
 
-    # Did you mean
     if note:
         st.warning(note)
 
-    # No results
     if results.empty:
-        st.error("❌ No suitable products found.")
+        st.error("❌ No suitable products found matching the criteria.")
     else:
-        for _, row in results.iterrows():
+        # Pagination - 10 items per page
+        page_size = 10
+        total_pages = (len(results) + page_size - 1) // page_size
+        
+        if total_pages > 1:
+            page = st.selectbox("Page", list(range(1, total_pages + 1))) - 1
+            sliced_results = results.iloc[page * page_size : (page + 1) * page_size]
+        else:
+            sliced_results = results
+
+        for _, row in sliced_results.iterrows():
             with st.container():
                 col1, col2 = st.columns([1, 3])
 
-                # Image
                 with col1:
                     if row.get("imgUrl"):
                         st.image(row["imgUrl"], use_container_width=True)
 
-                # Info
                 with col2:
                     title = row.get("title", "No Title")
                     url = row.get("productURL", "#")
 
                     st.markdown(f"### [{title}]({url})")
-
                     st.write(
                         f"⭐ {row.get('stars', 0)} | "
                         f"🗨️ {int(row.get('reviews', 0))} reviews | "
                         f"💰 ${row.get('price', 0)}"
                     )
-
                     st.write(f"🔥 Bought last month: {int(row.get('boughtInLastMonth', 0))}")
 
                     if row.get("isBestSeller", False):
